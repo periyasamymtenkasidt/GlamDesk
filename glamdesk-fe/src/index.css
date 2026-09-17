@@ -1,0 +1,98 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+/* ─── Tailwind v4 Theme ─────────────────────────────────────────────────── */
+@theme {
+  --font-inter:  'Inter', sans-serif;
+  --font-outfit: 'Outfit', sans-serif;
+
+  /* Background gradient stops */
+  --color-glam-bg-from:             #fdf8f4;
+  --color-glam-bg-to:               #f5e8de;
+
+  /* General — light mode defaults */
+  --color-glam-bg-solid:            #fdf8f4;
+  --color-glam-surface:             #fefaf7;
+  --color-glam-surface-alt:         #f5e9e0;
+  
+  --color-glam-text:                #2d1b2e;
+  --color-glam-text-muted:          #2d1b2e99;
+  --color-glam-accent:              #c9956c;
+  --color-glam-accent-2:            #d4728f;
+  --color-glam-border:              #c9956c61;
+  --color-glam-shadow:              #c9956c26;
+
+  /* Sidebar — light mode defaults */
+  --color-glam-sidebar-bg:          #fefaf7b3;
+  --color-glam-sidebar-hover:       #f5e9e0;
+  --color-glam-sidebar-active-from: #c9956c;
+  --color-glam-sidebar-active-to:   #d4728f;
+  --color-glam-sidebar-text:        #2d1b2ecc;
+  --color-glam-sidebar-section:     #2d1b2e66;
+
+  /* Scrollbar — light mode defaults */
+  --color-glam-scroll-track:        #1a0810;
+  --color-glam-scroll-thumb:        #6b1a2e;
+}
+
+/* Dark mode overrides (triggered by data-theme="dark" on <html>) */
+[data-theme="dark"] {
+  --color-glam-bg-from:             #0e0710;
+  --color-glam-bg-to:               #1a0f1b;
+  --color-glam-bg-solid:            #0e0710;
+  --color-glam-surface:             #1c1020;
+  --color-glam-surface-alt:         #231428;
+  --color-glam-text:                #ffffff;
+  --color-glam-text-muted:          #ffffffb8;
+  --color-glam-accent:              #c9956c;
+  --color-glam-accent-2:            #e8a4b8;
+  --color-glam-border:              #c9956c47;
+  --color-glam-shadow:              #00000066;
+
+  --color-glam-sidebar-bg:          #1c1020b3;
+  --color-glam-sidebar-hover:       #231428;
+  --color-glam-sidebar-active-from: #c9956c;
+  --color-glam-sidebar-active-to:   #e8a4b8;
+  --color-glam-sidebar-text:        #ffffffb8;
+  --color-glam-sidebar-section:     #ffffff40;
+
+  --color-glam-scroll-track:        #0e0710;
+  --color-glam-scroll-thumb:        #c9956c;
+}
+
+/* ─── Base Styles ─────────────────────────────────────────────────────────── */
+@layer base {
+  * {
+    @apply box-border;
+  }
+
+  html {
+    @apply font-inter transition-[background-color,color] duration-300 ease-in-out;
+  }
+
+  body {
+    @apply bg-linear-to-br from-glam-bg-from to-glam-bg-to text-glam-text min-h-screen antialiased;
+  }
+
+  /* Theme-aware transition for key elements */
+  header, aside, main, nav, section, div, button, input, p, span, h1, h2, h3 {
+    @apply transition-[background-color,border-color,color,box-shadow] duration-250 ease-in-out;
+  }
+
+  /* Scrollbar — pseudo-elements require @apply, no Tailwind selector equivalent */
+  ::-webkit-scrollbar {
+    @apply w-1.25 h-1.25;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-glam-scroll-track;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-glam-scroll-thumb rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-glam-accent;
+  }
+}
