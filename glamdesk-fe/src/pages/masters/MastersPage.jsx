@@ -1,4 +1,6 @@
 import ServiceMaster from './ServiceMaster';
+import VenueMaster from './VenueMaster';
+import VendorMaster from './VendorMaster';
 
 const MastersPage = ({ subTab = 'services' }) => {
   if (subTab === 'services') {
@@ -9,16 +11,17 @@ const MastersPage = ({ subTab = 'services' }) => {
     );
   }
 
-  const titles = {
-    venue: 'Venue Pricing Master',
-    vendors: 'Vendor Master',
-  };
+  if (subTab === 'venue') {
+    return (
+      <div className="p-4 sm:p-6 max-w-7xl mx-auto">
+        <VenueMaster />
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto">
-      <h1 className="text-2xl font-bold font-outfit text-glam-text tracking-tight">
-        {titles[subTab] || 'Master'}
-      </h1>
+      <VendorMaster />
     </div>
   );
 };
