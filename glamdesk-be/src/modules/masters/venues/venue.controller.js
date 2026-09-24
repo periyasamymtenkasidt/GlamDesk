@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const { Venue, VenueType } = require("./venue.model");
 const { successResponse, errorResponse } = require("../../../shared/utils/response");
 
@@ -186,12 +187,51 @@ const createVenueType = async (req, res, next) => {
 };
 
 /**
+ * Update venue type
+ * PUT /api/masters/venues/types/:id
+ */
+const updateVenueType = async (req, res, next) => {
+  try {
+    const { name, description, defaultDelta, icon, order, isActive } = req.body;
+    const type = mongoose.isValidObjectId(req.params.id)
+      ? await VenueType.findById(req.params.id)
+      : await VenueType.findOne({ name: req.params.id });
+
+    if (!type) {
+      return errorResponse(res, "Venue type not found", 404);
+    }
+
+    const oldName = type.name;
+
+    if (name) type.name = name.trim();
+    if (description !== undefined) type.description = description;
+    if (defaultDelta !== undefined) type.defaultDelta = Number(defaultDelta);
+    if (icon !== undefined) type.icon = icon;
+    if (order !== undefined) type.order = Number(order);
+    if (isActive !== undefined) type.isActive = Boolean(isActive);
+
+    await type.save();
+
+    // Cascade update to linked venues if name changed
+    if (name && oldName !== type.name) {
+      await Venue.updateMany({ venueType: oldName }, { venueType: type.name });
+    }
+
+    return successResponse(res, type, "Venue type updated successfully");
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * Delete venue type
  * DELETE /api/masters/venues/types/:id
  */
 const deleteVenueType = async (req, res, next) => {
   try {
-    const type = await VenueType.findByIdAndDelete(req.params.id);
+    const type = mongoose.isValidObjectId(req.params.id)
+      ? await VenueType.findByIdAndDelete(req.params.id)
+      : await VenueType.findOneAndDelete({ name: req.params.id });
     if (!type) {
       return errorResponse(res, "Venue type not found", 404);
     }
@@ -210,5 +250,6 @@ module.exports = {
   deleteVenue,
   getVenueTypes,
   createVenueType,
+  updateVenueType,
   deleteVenueType,
 };

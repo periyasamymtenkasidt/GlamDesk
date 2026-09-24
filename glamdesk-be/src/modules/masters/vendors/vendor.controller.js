@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const { Vendor, VendorRole } = require("./vendor.model");
 const { successResponse, errorResponse } = require("../../../shared/utils/response");
 
@@ -233,12 +234,48 @@ const createVendorRole = async (req, res, next) => {
 };
 
 /**
+ * Update vendor role
+ * PUT /api/masters/vendors/roles/:id
+ */
+const updateVendorRole = async (req, res, next) => {
+  try {
+    const { name, defaultSuggestions, isActive } = req.body;
+    const role = mongoose.isValidObjectId(req.params.id)
+      ? await VendorRole.findById(req.params.id)
+      : await VendorRole.findOne({ name: req.params.id });
+
+    if (!role) {
+      return errorResponse(res, "Vendor role not found", 404);
+    }
+
+    const oldName = role.name;
+
+    if (name) role.name = name.trim();
+    if (Array.isArray(defaultSuggestions)) role.defaultSuggestions = defaultSuggestions;
+    if (isActive !== undefined) role.isActive = Boolean(isActive);
+
+    await role.save();
+
+    // Cascade update to linked vendors if name changed
+    if (name && oldName !== role.name) {
+      await Vendor.updateMany({ role: oldName }, { role: role.name });
+    }
+
+    return successResponse(res, role, "Vendor role updated successfully");
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * Delete vendor role
  * DELETE /api/masters/vendors/roles/:id
  */
 const deleteVendorRole = async (req, res, next) => {
   try {
-    const role = await VendorRole.findByIdAndDelete(req.params.id);
+    const role = mongoose.isValidObjectId(req.params.id)
+      ? await VendorRole.findByIdAndDelete(req.params.id)
+      : await VendorRole.findOneAndDelete({ name: req.params.id });
     if (!role) {
       return errorResponse(res, "Vendor role not found", 404);
     }
@@ -258,5 +295,6 @@ module.exports = {
   addAvailabilityRecord,
   getVendorRoles,
   createVendorRole,
+  updateVendorRole,
   deleteVendorRole,
 };

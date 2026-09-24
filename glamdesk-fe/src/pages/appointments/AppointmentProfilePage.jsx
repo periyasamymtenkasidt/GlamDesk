@@ -28,10 +28,13 @@ import {
   Receipt,
   CreditCard,
   Banknote,
+  ShieldCheck,
+  ArrowUpRight,
 } from "lucide-react";
 import { useAppointments } from "../../context/AppointmentContext";
+import { useClients } from "../../context/ClientContext";
+import { useQuotations } from "../../context/QuotationContext";
 import BookAppointmentModal from "./BookAppointmentModal";
-import SendQuoteModal from "./SendQuoteModal";
 import RecordPaymentModal from "./RecordPaymentModal";
 
 // ─── Status Config ────────────────────────────────────────────────────────────
@@ -72,6 +75,13 @@ const statusConfig = {
     icon: CheckCircle2,
   },
   Cancelled: {
+    textColor: "text-rose-700 dark:text-rose-300",
+    bgLight: "bg-rose-500/10",
+    border: "border-rose-500/20",
+    dot: "bg-rose-500",
+    icon: XCircle,
+  },
+  Rejected: {
     textColor: "text-rose-700 dark:text-rose-300",
     bgLight: "bg-rose-500/10",
     border: "border-rose-500/20",
@@ -140,11 +150,16 @@ const AppointmentProfilePage = () => {
     deleteAppointment,
     updateAppointment,
   } = useAppointments();
+  const { getClientByPhone } = useClients();
+  const { getQuotationByAppointmentId } = useQuotations();
 
   const appointment = getAppointmentById(id);
+  const registeredClient = appointment ? getClientByPhone(appointment.clientPhone) : null;
+  const linkedQuote = getQuotationByAppointmentId(appointment?.id || appointment?.code);
+  const isOfficiallyConfirmed = ["Confirmed", "In-Progress", "Completed"].includes(appointment?.status);
+
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isSendQuoteModalOpen, setIsSendQuoteModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [paymentType, setPaymentType] = useState("advance"); // "advance" | "balance"
   const [copiedField, setCopiedField] = useState(null);
@@ -154,7 +169,7 @@ const AppointmentProfilePage = () => {
     if (step.id === "Booked") {
       updateStatus(appointment.id, "Booked");
     } else if (step.id === "Quote Sent") {
-      setIsSendQuoteModalOpen(true);
+      navigate(linkedQuote ? `/quotations/${linkedQuote.id}` : "/quotations");
     } else if (step.id === "Confirmed") {
       if (!appointment.advancePaid) {
         setPaymentType("advance");
@@ -285,13 +300,38 @@ const AppointmentProfilePage = () => {
                   <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
                   <span>{appointment.status}</span>
                 </span>
+
+                {/* Official Client or Lead Conversion Status */}
+                {registeredClient || isOfficiallyConfirmed ? (
+                  <Link
+                    to={
+                      registeredClient
+                        ? `/clients/${registeredClient.id || registeredClient.code}`
+                        : "/clients"
+                    }
+                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 hover:bg-emerald-500/20 transition-all cursor-pointer shadow-2xs"
+                    title="View official client profile in Client Master CRM"
+                  >
+                    <ShieldCheck size={12} className="text-emerald-500" />
+                    <span>Official Client {registeredClient?.code ? `(#${registeredClient.code})` : ""}</span>
+                    <ArrowUpRight size={11} className="opacity-70" />
+                  </Link>
+                ) : (
+                  <span
+                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/25 shadow-2xs"
+                    title="Unconfirmed booking: Automatically converts to Official Client upon Confirmation / Advance payment."
+                  >
+                    <Clock size={11} className="text-amber-500" />
+                    <span>Lead · Converts on Confirmation</span>
+                  </span>
+                )}
               </div>
               <p className="text-xs font-medium text-glam-text-muted mt-0.5">
                 <span className="text-glam-text font-semibold">
                   {appointment.serviceName}
                 </span>{" "}
                 ·{" "}
-                <span className="text-[#a67c52] dark:text-glam-accent font-semibold">
+                <span className="text-glam-accent font-semibold">
                   {appointment.serviceCategory}
                 </span>
               </p>
@@ -302,37 +342,58 @@ const AppointmentProfilePage = () => {
           <div className="flex items-center gap-2 flex-wrap shrink-0">
             {/* 1. Dynamic Primary Workflow Next-Step Button */}
             {appointment.status === "Booked" && (
-              <button
-                type="button"
-                onClick={() => setIsSendQuoteModalOpen(true)}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-linear-to-r from-glam-accent to-glam-accent-2 text-white text-xs font-bold shadow-xs hover:opacity-95 transition-all cursor-pointer"
-                title="Send quotation & advance details to client via WhatsApp"
-              >
-                <Send size={13} />
-                <span>Send Quote</span>
-              </button>
+              <>
+                <Link
+                  to={linkedQuote ? `/quotations/${linkedQuote.id}` : "/quotations"}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-linear-to-r from-glam-accent to-glam-accent-2 text-white text-xs font-bold shadow-xs hover:opacity-95 transition-all cursor-pointer"
+                  title="Prepare, revise or send quotation in Quotations Module"
+                >
+                  <FileText size={13} />
+                  <span>{linkedQuote ? "View Quotation" : "Create Quotation"}</span>
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => updateStatus(appointment.id, "Confirmed")}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                  title="Directly confirm booking and convert to Official Client"
+                >
+                  <CheckCircle2 size={13} />
+                  <span>Confirm & Convert</span>
+                </button>
+              </>
             )}
 
             {appointment.status === "Quote Sent" && (
-              <button
-                type="button"
-                onClick={() => {
-                  setPaymentType("advance");
-                  setIsPaymentModalOpen(true);
-                }}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
-                title="Record advance payment from client"
-              >
-                <CreditCard size={13} />
-                <span>
-                  Collect Advance (₹
-                  {(
-                    appointment.advanceRequired ||
-                    Math.round((appointment.totalAmount || 0) * 0.4)
-                  ).toLocaleString("en-IN")}
-                  )
-                </span>
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPaymentType("advance");
+                    setIsPaymentModalOpen(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                  title="Record advance payment from client"
+                >
+                  <CreditCard size={13} />
+                  <span>
+                    Collect Advance (₹
+                    {(
+                      appointment.advanceRequired ||
+                      Math.round((appointment.totalAmount || 0) * 0.4)
+                    ).toLocaleString("en-IN")}
+                    )
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateStatus(appointment.id, "Confirmed")}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 text-xs font-bold transition-colors cursor-pointer"
+                  title="Directly mark Confirmed & Convert into Client Master"
+                >
+                  <CheckCircle2 size={13} />
+                  <span>Confirm & Convert</span>
+                </button>
+              </>
             )}
 
             {appointment.status === "Confirmed" && (
@@ -384,16 +445,6 @@ const AppointmentProfilePage = () => {
             )}
 
             {/* 2. Secondary Actions */}
-            <button
-              type="button"
-              onClick={() => setIsSendQuoteModalOpen(true)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-glam-surface-alt border border-glam-border/40 text-glam-text hover:text-glam-accent text-xs font-semibold transition-colors cursor-pointer"
-              title="Preview, download A4 PDF, or send quote to client"
-            >
-              <FileText size={13} />
-              <span>Quote PDF</span>
-            </button>
-
             <a
               href={waUrl}
               target="_blank"
@@ -417,18 +468,22 @@ const AppointmentProfilePage = () => {
         {appointment.status !== "Cancelled" && (
           <div className="mt-5 pt-4 border-t border-glam-border/30">
             <div className="flex items-center justify-between relative px-2 sm:px-6">
-              {/* Connector line background */}
-              <div className="absolute left-6 right-6 top-3.5 sm:top-4 h-0.5 bg-glam-border/40 z-0" />
-              {/* Connector line progress */}
-              <div
-                className="absolute left-6 top-3.5 sm:top-4 h-0.5 bg-linear-to-r from-glam-accent to-emerald-500 z-0 transition-all duration-300"
-                style={{
-                  width:
-                    currentStepIndex >= 0
-                      ? `${(currentStepIndex / (WORKFLOW_STEPS.length - 1)) * 100}%`
-                      : "0%",
-                }}
-              />
+              {/* Connector line background & progress */}
+              <div className="absolute left-6 right-6 top-3.5 sm:top-4 h-0.5 bg-glam-border/40 z-0">
+                <div
+                  className={`h-full bg-linear-to-r from-glam-accent to-emerald-500 transition-all duration-300 ${
+                    currentStepIndex === 1
+                      ? "w-1/4"
+                      : currentStepIndex === 2
+                      ? "w-1/2"
+                      : currentStepIndex === 3
+                      ? "w-3/4"
+                      : currentStepIndex >= 4
+                      ? "w-full"
+                      : "w-0"
+                  }`}
+                />
+              </div>
 
               {WORKFLOW_STEPS.map((step, idx) => {
                 const isPassed = currentStepIndex > idx;
@@ -481,10 +536,21 @@ const AppointmentProfilePage = () => {
         <div className="lg:col-span-2 space-y-4">
           {/* Card 1: Client & Contact Info */}
           <div className="bg-glam-surface/90 border border-glam-border/40 rounded-2xl p-4 sm:p-5 backdrop-blur-md shadow-2xs space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-glam-text-muted flex items-center gap-1.5">
-              <User size={13} className="text-[#a67c52]" />
-              Client Details
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-glam-text-muted flex items-center gap-1.5">
+                <User size={13} className="text-glam-accent" />
+                Client Details
+              </h3>
+              {registeredClient && (
+                <Link
+                  to={`/clients/${registeredClient.id || registeredClient.code}`}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-glam-accent hover:underline cursor-pointer"
+                >
+                  <span>View Client Profile</span>
+                  <ArrowUpRight size={11} />
+                </Link>
+              )}
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div className="p-3 rounded-xl bg-glam-surface-alt/40 border border-glam-border/30">
@@ -551,7 +617,7 @@ const AppointmentProfilePage = () => {
           {/* Card 2: Service & Booking Information */}
           <div className="bg-glam-surface/90 border border-glam-border/40 rounded-2xl p-4 sm:p-5 backdrop-blur-md shadow-2xs space-y-3">
             <h3 className="text-xs font-bold uppercase tracking-wider text-glam-text-muted flex items-center gap-1.5">
-              <Sparkles size={13} className="text-[#a67c52]" />
+              <Sparkles size={13} className="text-glam-accent" />
               Service & Schedule Information
             </h3>
 
@@ -563,7 +629,7 @@ const AppointmentProfilePage = () => {
                 <span className="text-sm sm:text-base font-bold text-glam-text mt-0.5 block">
                   {appointment.serviceName}
                 </span>
-                <span className="text-[11px] font-semibold text-[#a67c52] dark:text-glam-accent mt-0.5 block">
+                <span className="text-[11px] font-semibold text-glam-accent mt-0.5 block">
                   Category: {appointment.serviceCategory}
                 </span>
               </div>
@@ -582,7 +648,7 @@ const AppointmentProfilePage = () => {
                   Event Date
                 </span>
                 <div className="flex items-center gap-1.5 mt-0.5 text-sm sm:text-base font-bold text-glam-text">
-                  <Calendar size={14} className="text-[#a67c52]" />
+                  <Calendar size={14} className="text-glam-accent" />
                   <span>{formatDate(appointment.eventDate)}</span>
                 </div>
               </div>
@@ -592,7 +658,7 @@ const AppointmentProfilePage = () => {
                   Call Time & Duration
                 </span>
                 <div className="flex items-center gap-1.5 mt-0.5 text-sm sm:text-base font-bold text-glam-accent font-outfit">
-                  <Clock size={14} className="text-[#a67c52]" />
+                  <Clock size={14} className="text-glam-accent" />
                   <span>{appointment.eventTime}</span>
                   {appointment.duration && (
                     <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-glam-surface border border-glam-border/30 text-glam-text">
@@ -607,7 +673,7 @@ const AppointmentProfilePage = () => {
           {/* Card 3: Venue & Logistics */}
           <div className="bg-glam-surface/90 border border-glam-border/40 rounded-2xl p-4 sm:p-5 backdrop-blur-md shadow-2xs space-y-3">
             <h3 className="text-xs font-bold uppercase tracking-wider text-glam-text-muted flex items-center gap-1.5">
-              <Building2 size={13} className="text-[#a67c52]" />
+              <Building2 size={13} className="text-glam-accent" />
               Venue & Logistics
             </h3>
 
@@ -656,7 +722,7 @@ const AppointmentProfilePage = () => {
           {/* Card 4: Vendor / Vendor Assignment */}
           <div className="bg-glam-surface/90 border border-glam-border/40 rounded-2xl p-4 sm:p-5 backdrop-blur-md shadow-2xs space-y-3">
             <h3 className="text-xs font-bold uppercase tracking-wider text-glam-text-muted flex items-center gap-1.5">
-              <Users size={13} className="text-[#a67c52]" />
+              <Users size={13} className="text-glam-accent" />
               Vendor Assignment
             </h3>
 
@@ -694,7 +760,7 @@ const AppointmentProfilePage = () => {
           {appointment.notes && (
             <div className="bg-glam-surface/90 border border-glam-border/40 rounded-2xl p-4 sm:p-5 backdrop-blur-md shadow-2xs space-y-2">
               <h3 className="text-xs font-bold uppercase tracking-wider text-glam-text-muted flex items-center gap-1.5">
-                <FileText size={13} className="text-[#a67c52]" />
+                <FileText size={13} className="text-glam-accent" />
                 Event Notes & Client Requests
               </h3>
               <p className="text-xs sm:text-sm font-medium text-glam-text leading-relaxed">
@@ -706,14 +772,72 @@ const AppointmentProfilePage = () => {
 
         {/* Right Column (1 span) */}
         <div className="space-y-4">
+          {/* Card: Commercial Quotation Status */}
+          <div className="bg-glam-surface/90 border border-glam-border/40 rounded-2xl p-4 sm:p-5 backdrop-blur-md shadow-2xs space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-glam-text flex items-center gap-1.5">
+                <FileText size={13} className="text-glam-accent" />
+                Commercial Quotation
+              </h3>
+              {linkedQuote && (
+                <span className="text-[11px] font-mono font-bold text-glam-accent px-2 py-0.5 rounded-md bg-glam-surface-alt border border-glam-border/40">
+                  #{linkedQuote.code} {linkedQuote.revision > 1 ? `(v${linkedQuote.revision})` : ""}
+                </span>
+              )}
+            </div>
+
+            {linkedQuote ? (
+              <div className="space-y-2 text-xs">
+                <div className="flex justify-between items-center p-2.5 rounded-xl bg-glam-surface-alt/40 border border-glam-border/30">
+                  <span className="text-glam-text-muted">Quotation Status:</span>
+                  <span
+                    className={`font-semibold px-2 py-0.5 rounded-full text-[11px] ${
+                      linkedQuote.status === "Won"
+                        ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                        : linkedQuote.status === "Lost"
+                        ? "bg-rose-500/15 text-rose-600 dark:text-rose-400"
+                        : "bg-sky-500/15 text-sky-600 dark:text-sky-400"
+                    }`}
+                  >
+                    {linkedQuote.status}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center p-2.5 rounded-xl bg-glam-surface-alt/40 border border-glam-border/30">
+                  <span className="text-glam-text-muted">Total Quoted:</span>
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                    ₹{(linkedQuote.totalAmount || 0).toLocaleString("en-IN")}
+                  </span>
+                </div>
+                <Link
+                  to="/quotations"
+                  className="w-full inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-glam-accent/10 hover:bg-glam-accent/20 text-glam-accent text-xs font-bold transition-colors"
+                >
+                  <span>Manage in Quotations Module</span>
+                  <ArrowUpRight size={13} />
+                </Link>
+              </div>
+            ) : (
+              <div className="p-3.5 text-center rounded-xl bg-glam-surface-alt/40 border border-glam-border/30 space-y-2">
+                <p className="text-xs text-glam-text-muted">No quote generated yet for this lead.</p>
+                <Link
+                  to="/quotations"
+                  className="inline-flex items-center gap-1.5 py-1.5 px-3 rounded-xl bg-glam-accent text-white text-xs font-bold shadow-xs hover:opacity-95 transition-opacity"
+                >
+                  <Plus size={12} />
+                  <span>Create Quote in Quotations</span>
+                </Link>
+              </div>
+            )}
+          </div>
+
           {/* Card 1: Financial & Payment Status */}
           <div className="bg-glam-surface/90 border border-glam-border/40 rounded-2xl p-4 sm:p-5 backdrop-blur-md shadow-2xs space-y-3.5">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-bold uppercase tracking-wider text-glam-text flex items-center gap-1.5">
-                <IndianRupee size={13} className="text-[#a67c52]" />
+                <IndianRupee size={13} className="text-glam-accent" />
                 Financial Overview
               </h3>
-              <span className="text-xs font-bold text-[#a67c52] dark:text-glam-accent">
+              <span className="text-xs font-bold text-glam-accent">
                 {percentPaid}% Paid
               </span>
             </div>
@@ -816,14 +940,13 @@ const AppointmentProfilePage = () => {
                 </div>
               )}
 
-              <button
-                type="button"
-                onClick={() => setIsSendQuoteModalOpen(true)}
+              <Link
+                to={linkedQuote ? `/quotations/${linkedQuote.id}` : "/quotations"}
                 className="w-full mt-2 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-glam-surface-alt/70 hover:bg-glam-surface border border-glam-border/40 text-glam-text hover:text-glam-accent text-xs font-semibold transition-colors cursor-pointer"
               >
                 <FileText size={13} className="text-glam-accent" />
-                <span>Quotation PDF & Details</span>
-              </button>
+                <span>Manage Quotation & PDF ↗</span>
+              </Link>
             </div>
           </div>
 
@@ -951,15 +1074,6 @@ const AppointmentProfilePage = () => {
         onAddAppointment={() => {}}
       />
 
-      {/* Send Quote Modal */}
-      <SendQuoteModal
-        isOpen={isSendQuoteModalOpen}
-        onClose={() => setIsSendQuoteModalOpen(false)}
-        appointment={appointment}
-        onQuoteSent={(quoteData) => {
-          updateAppointment(appointment.id, quoteData);
-        }}
-      />
 
       {/* Record Payment Modal (UPI / Cash) */}
       <RecordPaymentModal

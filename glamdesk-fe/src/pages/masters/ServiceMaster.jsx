@@ -39,6 +39,7 @@ import {
   FolderPlus,
 } from "lucide-react";
 import { initialServices } from "../../data/serviceData";
+import { servicesApi } from "../../services/mastersApi";
 import Modal from "../../components/modals/Modal";
 import ThemeSelect from "../../components/common/form/ThemeSelect";
 
@@ -1049,7 +1050,57 @@ const ServiceMaster = () => {
   const [editingCategory, setEditingCategory] = useState(null);
   const [deletingCategoryObj, setDeletingCategoryObj] = useState(null);
 
-  // Persist Categories
+  // Sync Live Services and Categories from MongoDB Backend on mount
+  useEffect(() => {
+    let isMounted = true;
+    const fetchMasters = async () => {
+      try {
+        const [backendServices, backendCategories] = await Promise.allSettled([
+          servicesApi.getAll(),
+          servicesApi.getCategories(),
+        ]);
+
+        if (!isMounted) return;
+
+        if (
+          backendServices.status === "fulfilled" &&
+          Array.isArray(backendServices.value) &&
+          backendServices.value.length > 0
+        ) {
+          setServices(
+            backendServices.value.map((s) => ({
+              ...s,
+              id: s._id || s.id,
+              _id: s._id || s.id,
+            }))
+          );
+        }
+
+        if (
+          backendCategories.status === "fulfilled" &&
+          Array.isArray(backendCategories.value) &&
+          backendCategories.value.length > 0
+        ) {
+          setCategories(
+            backendCategories.value.map((c) => ({
+              ...c,
+              id: c._id || c.id,
+              _id: c._id || c.id,
+            }))
+          );
+        }
+      } catch (err) {
+        console.warn("Backend services sync failed, using cached state:", err.message);
+      }
+    };
+
+    fetchMasters();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Persist Categories to localStorage as offline cache
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_CATEGORIES_KEY, JSON.stringify(categories));
@@ -1058,7 +1109,7 @@ const ServiceMaster = () => {
     }
   }, [categories]);
 
-  // Persist Services
+  // Persist Services to localStorage as offline cache
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_SERVICES_KEY, JSON.stringify(services));
@@ -1129,11 +1180,16 @@ const ServiceMaster = () => {
       });
   }, [services, activeCategory, searchQuery, sortBy]);
 
-  // Service Handlers
-  const handleToggleStatus = (id) => {
+  // Service Handlers with Backend Sync
+  const handleToggleStatus = async (id) => {
     setServices((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, isActive: !s.isActive } : s))
+      prev.map((s) => (s.id === id || s._id === id ? { ...s, isActive: !s.isActive } : s))
     );
+    try {
+      await servicesApi.toggleStatus(id);
+    } catch (e) {
+      console.warn("Backend toggle service status failed:", e.message);
+    }
   };
 
   const handleOpenAddServiceModal = (cat) => {
@@ -1146,30 +1202,56 @@ const ServiceMaster = () => {
     setIsServiceModalOpen(true);
   };
 
-  const handleSaveService = (savedData) => {
+  const handleSaveService = async (savedData) => {
     if (editingService) {
+      const targetId = editingService.id || editingService._id;
       setServices((prev) =>
         prev.map((s) =>
-          s.id === editingService.id ? { ...s, ...savedData } : s
+          s.id === targetId || s._id === targetId ? { ...s, ...savedData } : s
         )
       );
+      setIsServiceModalOpen(false);
+
+      try {
+        await servicesApi.update(targetId, savedData);
+      } catch (e) {
+        console.warn("Backend update service failed, updated locally:", e.message);
+      }
     } else {
-      const newService = {
-        ...savedData,
-        id: `srv-${Date.now()}`,
-        createdAt: savedData.createdAt || Date.now(),
-      };
-      setServices((prev) => [newService, ...prev]);
+      setIsServiceModalOpen(false);
+      try {
+        const created = await servicesApi.create(savedData);
+        const normalized = {
+          ...created,
+          id: created._id || created.id,
+          _id: created._id || created.id,
+        };
+        setServices((prev) => [normalized, ...prev.filter((s) => s.id !== normalized.id)]);
+      } catch (e) {
+        console.warn("Backend create service failed, saved locally:", e.message);
+        const newService = {
+          ...savedData,
+          id: `srv-${Date.now()}`,
+          createdAt: savedData.createdAt || Date.now(),
+        };
+        setServices((prev) => [newService, ...prev]);
+      }
       setSortBy("recent");
       setSearchQuery("");
     }
-    setIsServiceModalOpen(false);
   };
 
-  const handleDeleteServiceConfirm = () => {
+  const handleDeleteServiceConfirm = async () => {
     if (deletingId) {
-      setServices((prev) => prev.filter((s) => s.id !== deletingId));
+      const idToDelete = deletingId;
+      setServices((prev) => prev.filter((s) => s.id !== idToDelete && s._id !== idToDelete));
       setDeletingId(null);
+
+      try {
+        await servicesApi.delete(idToDelete);
+      } catch (e) {
+        console.warn("Backend delete service failed:", e.message);
+      }
     }
   };
 
@@ -1184,14 +1266,18 @@ const ServiceMaster = () => {
     setIsCategoryModalOpen(true);
   };
 
-  const handleSaveCategory = (categoryData) => {
+  const handleSaveCategory = async (categoryData) => {
     if (editingCategory) {
       const oldName = editingCategory.name;
       const newName = categoryData.name;
 
-      // Update category record
+      // Update category record in local state
       setCategories((prev) =>
-        prev.map((c) => (c.id === editingCategory.id ? { ...c, ...categoryData } : c))
+        prev.map((c) =>
+          (c.id === editingCategory.id || c._id === editingCategory._id || c.name === oldName)
+            ? { ...c, ...categoryData }
+            : c
+        )
       );
 
       // If category name was renamed, update linked services
@@ -1205,6 +1291,13 @@ const ServiceMaster = () => {
           setActiveCategory(newName);
         }
       }
+
+      try {
+        const catTargetId = editingCategory._id || editingCategory.id || oldName;
+        await servicesApi.updateCategory(catTargetId, categoryData);
+      } catch (e) {
+        console.warn("Backend update category failed, saved locally:", e.message);
+      }
     } else {
       // Check for duplicate names
       const isDuplicate = categories.some(
@@ -1214,12 +1307,23 @@ const ServiceMaster = () => {
         alert("A category with this name already exists.");
         return;
       }
-      setCategories((prev) => [categoryData, ...prev]);
+      try {
+        const created = await servicesApi.createCategory(categoryData);
+        const normalized = {
+          ...created,
+          id: created._id || created.id,
+          _id: created._id || created.id,
+        };
+        setCategories((prev) => [normalized, ...prev]);
+      } catch (e) {
+        console.warn("Backend create category failed, saved locally:", e.message);
+        setCategories((prev) => [categoryData, ...prev]);
+      }
     }
     setIsCategoryModalOpen(false);
   };
 
-  const handleDeleteCategoryConfirm = (catObj, reassignTarget) => {
+  const handleDeleteCategoryConfirm = async (catObj, reassignTarget) => {
     // Reassign services if target chosen
     if (reassignTarget) {
       setServices((prev) =>
@@ -1230,11 +1334,22 @@ const ServiceMaster = () => {
     }
 
     // Remove category
-    setCategories((prev) => prev.filter((c) => c.id !== catObj.id));
+    setCategories((prev) =>
+      prev.filter((c) => c.id !== catObj.id && c._id !== catObj.id && c.name !== catObj.name)
+    );
 
     // Reset active category view if we were currently viewing it
     if (activeCategory === catObj.name) {
       setActiveCategory(null);
+    }
+
+    try {
+      const targetId = catObj._id || catObj.id;
+      if (targetId) {
+        await servicesApi.deleteCategory(targetId);
+      }
+    } catch (e) {
+      console.warn("Backend delete category failed:", e.message);
     }
 
     setDeletingCategoryObj(null);

@@ -10,12 +10,14 @@ const {
   addAvailabilityRecord,
   getVendorRoles,
   createVendorRole,
+  updateVendorRole,
   deleteVendorRole,
 } = require("./vendor.controller");
 
 // Vendor Roles Routes (Before :id param)
 router.get("/roles", getVendorRoles);
 router.post("/roles", createVendorRole);
+router.put("/roles/:id", updateVendorRole);
 router.delete("/roles/:id", deleteVendorRole);
 
 // Vendor Routes

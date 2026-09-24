@@ -1,11 +1,15 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import { initialAppointments } from "../data/appointmentData";
+import { useClients } from "./ClientContext";
 
 const AppointmentContext = createContext(null);
 
 const STORAGE_KEY = "glamdesk_appointments_data";
+const CONFIRMED_STATUSES = ["Confirmed", "In-Progress", "Completed"];
 
 export const AppointmentProvider = ({ children }) => {
+  const { convertAppointmentToClient } = useClients();
+
   const [appointments, setAppointments] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -46,27 +50,56 @@ export const AppointmentProvider = ({ children }) => {
       createdAt: newApt.createdAt || Date.now(),
     };
     setAppointments((prev) => [created, ...prev]);
+
+    // Automatically convert to official client if added as confirmed
+    if (created.status && CONFIRMED_STATUSES.includes(created.status) && convertAppointmentToClient) {
+      convertAppointmentToClient(created);
+    }
+
     return created;
   };
 
   const updateAppointment = (id, updatedData) => {
+    let targetApt = null;
     setAppointments((prev) =>
-      prev.map((apt) =>
-        String(apt.id) === String(id) || String(apt.code) === String(id)
-          ? { ...apt, ...updatedData }
-          : apt
-      )
+      prev.map((apt) => {
+        if (String(apt.id) === String(id) || String(apt.code) === String(id)) {
+          const updated = { ...apt, ...updatedData };
+          targetApt = updated;
+          return updated;
+        }
+        return apt;
+      })
     );
+
+    // If updated status is confirmed, convert to official client
+    if (
+      targetApt &&
+      updatedData.status &&
+      CONFIRMED_STATUSES.includes(updatedData.status) &&
+      convertAppointmentToClient
+    ) {
+      convertAppointmentToClient(targetApt);
+    }
   };
 
   const updateStatus = (id, newStatus) => {
+    let targetApt = null;
     setAppointments((prev) =>
-      prev.map((apt) =>
-        String(apt.id) === String(id) || String(apt.code) === String(id)
-          ? { ...apt, status: newStatus }
-          : apt
-      )
+      prev.map((apt) => {
+        if (String(apt.id) === String(id) || String(apt.code) === String(id)) {
+          const updated = { ...apt, status: newStatus };
+          targetApt = updated;
+          return updated;
+        }
+        return apt;
+      })
     );
+
+    // Automatically convert to client upon confirmation!
+    if (targetApt && CONFIRMED_STATUSES.includes(newStatus) && convertAppointmentToClient) {
+      convertAppointmentToClient(targetApt);
+    }
   };
 
   const deleteAppointment = (id) => {

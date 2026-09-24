@@ -7,7 +7,7 @@ import {
   Check,
   MapPin,
 } from "lucide-react";
-import { initialServices } from "../../data/serviceData";
+import { initialServices, categoriesList } from "../../data/serviceData";
 import { initialVendors } from "../../data/vendorData";
 import { initialAppointments } from "../../data/appointmentData";
 import { venueTypesList, initialVenues } from "../../data/venueData";
@@ -17,7 +17,7 @@ import ThemeSelect from "../../components/common/form/ThemeSelect";
 const calculateEndTime = (hour, minute, period, durationMinutes) => {
   let h = parseInt(hour, 10);
   const m = parseInt(minute, 10);
-  if (period === "PM" && h !== 12) h += 12;
+  if (period === "PM" && h !== 12) h += 12; 
   if (period === "AM" && h === 12) h = 0;
 
   const totalMins = h * 60 + m + (durationMinutes || 120);
@@ -71,6 +71,7 @@ const BookAppointmentModal = ({
   const [period, setPeriod] = useState("AM");
 
   // Service & Group Size
+  const [selectedCategory, setSelectedCategory] = useState("All");
   const [selectedServiceId, setSelectedServiceId] = useState("");
   const [personsCount, setPersonsCount] = useState(1);
 
@@ -92,6 +93,89 @@ const BookAppointmentModal = ({
   const [notes, setNotes] = useState("");
   const [errors, setErrors] = useState({});
 
+  // ─── Service & Category Data Sources ─────────────────────────────────────────
+  // Available Services (from localStorage or initialServices)
+  const availableServices = useMemo(() => {
+    try {
+      const saved = localStorage.getItem("glamdesk_services_data_v2");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.filter((s) => s.isActive !== false);
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to load services in BookAppointmentModal:", e);
+    }
+    return initialServices.filter((s) => s.isActive !== false);
+  }, [isOpen]);
+
+  // Available Categories (from localStorage, categoriesList, or derived from services)
+  const availableCategories = useMemo(() => {
+    try {
+      const saved = localStorage.getItem("glamdesk_service_categories_v2");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const names = parsed
+            .map((c) => (typeof c === "object" && c !== null ? c.name : c))
+            .filter((c) => Boolean(c) && c !== "All");
+          if (names.length > 0) return names;
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to load categories in BookAppointmentModal:", e);
+    }
+    const fromServices = [
+      ...new Set(availableServices.map((s) => s.category).filter(Boolean)),
+    ];
+    if (fromServices.length > 0) return fromServices;
+    return categoriesList.filter((c) => c !== "All");
+  }, [isOpen, availableServices]);
+
+  // Category Dropdown options
+  const categoryOptions = useMemo(() => {
+    return [
+      { value: "All", label: "✨ All Makeup & Service Types" },
+      ...availableCategories.map((cat) => ({
+        value: cat,
+        label: cat,
+      })),
+    ];
+  }, [availableCategories]);
+
+  // Filtered Services based on selected category
+  const filteredServices = useMemo(() => {
+    if (!selectedCategory || selectedCategory === "All") {
+      return availableServices;
+    }
+    return availableServices.filter(
+      (s) => s.category?.toLowerCase() === selectedCategory.toLowerCase(),
+    );
+  }, [availableServices, selectedCategory]);
+
+  // Service package options
+  const serviceOptions = useMemo(() => {
+    return [
+      {
+        value: "",
+        label:
+          selectedCategory && selectedCategory !== "All"
+            ? `— Select a ${selectedCategory} package —`
+            : "— Select a service package —",
+      },
+      ...filteredServices.map((s) => ({
+        value: s.id,
+        label: `${s.name} — ₹${Number(s.amount || 0).toLocaleString("en-IN")} (${s.duration || 60} mins)`,
+      })),
+    ];
+  }, [filteredServices, selectedCategory]);
+
+  // Selected Service
+  const selectedService = useMemo(() => {
+    return availableServices.find((s) => s.id === selectedServiceId) || null;
+  }, [availableServices, selectedServiceId]);
+
   // Pre-fill form when opening in edit mode
   useEffect(() => {
     if (isOpen && isEditMode && editingAppointment) {
@@ -107,11 +191,20 @@ const BookAppointmentModal = ({
       setMinute(parsed.minute);
       setPeriod(parsed.period);
 
-      // Match service by name
-      const matchedService = initialServices.find(
-        (s) => s.name === apt.serviceName,
+      // Match service by name or id
+      const matchedService = availableServices.find(
+        (s) => s.name === apt.serviceName || s.id === apt.serviceId,
       );
-      setSelectedServiceId(matchedService ? matchedService.id : "");
+      if (matchedService) {
+        setSelectedServiceId(matchedService.id);
+        setSelectedCategory(matchedService.category || apt.serviceCategory || "All");
+      } else if (apt.serviceCategory) {
+        setSelectedCategory(apt.serviceCategory);
+        setSelectedServiceId("");
+      } else {
+        setSelectedCategory("All");
+        setSelectedServiceId("");
+      }
 
       // Location
       const isStudio = apt.venueType?.toLowerCase().includes("studio");
@@ -148,6 +241,7 @@ const BookAppointmentModal = ({
       setHour(9);
       setMinute(0);
       setPeriod("AM");
+      setSelectedCategory("All");
       setSelectedServiceId("");
       setPersonsCount(1);
       setSelectedVendorIds([]);
@@ -160,7 +254,7 @@ const BookAppointmentModal = ({
       setNotes("");
       setErrors({});
     }
-  }, [isOpen, isEditMode, editingAppointment]);
+  }, [isOpen, isEditMode, editingAppointment, availableServices]);
 
   // Clients list matching the reference design and existing seed appointments
   const clientOptions = useMemo(() => {
@@ -209,16 +303,7 @@ const BookAppointmentModal = ({
     return list;
   }, []);
 
-  // Service package options
-  const serviceOptions = useMemo(() => {
-    return [
-      { value: "", label: "— Select a service package —" },
-      ...initialServices.map((s) => ({
-        value: s.id,
-        label: `${s.name} — ₹${s.amount.toLocaleString("en-IN")} (${s.duration} mins)`,
-      })),
-    ];
-  }, []);
+
 
   // Location options
   const locationOptions = [
@@ -226,43 +311,65 @@ const BookAppointmentModal = ({
     { value: "venue", label: "📍 On-Location / Client Venue" },
   ];
 
-  // Venue Category options from Venue Master (matches reference image)
+  // Venue Category / Tier options from Venue Master
   const venueCategoryOptions = useMemo(() => {
+    let list = initialVenues;
     try {
       const saved = localStorage.getItem("glamdesk_venues_data_v2");
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed
-            .filter((v) => v.isActive)
-            .map((v) => ({
-              value: v.venueName,
-              label: v.venueName,
-            }));
+          list = parsed;
         }
       }
     } catch (e) {
       console.warn("Failed to load venues in BookAppointmentModal:", e);
     }
-    return initialVenues.map((v) => ({
-      value: v.venueName,
-      label: v.venueName,
-    }));
+    return list
+      .filter((v) => v.isActive !== false)
+      .map((v) => {
+        const name = v.venueName || v.name;
+        const deltaVal = Number(v.priceDelta || 0);
+        const deltaStr =
+          deltaVal > 0
+            ? `+₹${deltaVal.toLocaleString("en-IN")}`
+            : deltaVal < 0
+            ? `−₹${Math.abs(deltaVal).toLocaleString("en-IN")}`
+            : "₹0 Base";
+        const travelVal = Number(v.travelSurcharge || 0);
+        const travelStr = travelVal > 0 ? ` · ₹${travelVal.toLocaleString("en-IN")} travel` : "";
+        return {
+          value: name,
+          label: `${name} (${deltaStr}${travelStr})`,
+        };
+      });
   }, [isOpen]);
 
-  // Selected Service
-  const selectedService = useMemo(() => {
-    return initialServices.find((s) => s.id === selectedServiceId) || null;
-  }, [selectedServiceId]);
-
-  // When Service changes, automatically update pricing & duration
+  // When Service or Venue Tier changes, automatically update pricing & duration
   useEffect(() => {
     if (selectedService) {
       const baseAmt = selectedService.amount * personsCount;
-      setTotalAmount(baseAmt);
-      setAdvanceRequired(Math.round(baseAmt * 0.4));
+      let extra = 0;
+      if (locationType === "venue" && venueCategory) {
+        let venuesList = initialVenues;
+        try {
+          const savedVenues = localStorage.getItem("glamdesk_venues_data_v2");
+          if (savedVenues) {
+            const parsed = JSON.parse(savedVenues);
+            if (Array.isArray(parsed) && parsed.length > 0) venuesList = parsed;
+          }
+        } catch (e) {}
+        const matched = venuesList.find(
+          (v) => (v.venueName || v.name) === venueCategory
+        );
+        if (matched) {
+          extra = (matched.priceDelta || 0) + (matched.travelSurcharge || 0);
+        }
+      }
+      setTotalAmount(baseAmt + extra);
+      setAdvanceRequired(Math.round((baseAmt + extra) * 0.4));
     }
-  }, [selectedService, personsCount]);
+  }, [selectedService, personsCount, locationType, venueCategory]);
 
   // When existing client is picked from dropdown
   const handleClientSelect = (val) => {
@@ -409,6 +516,8 @@ const BookAppointmentModal = ({
         : "Custom Glam Package",
       serviceCategory: selectedService
         ? selectedService.category
+        : selectedCategory && selectedCategory !== "All"
+        ? selectedCategory
         : "Bridal & Luxury",
       baseAmount: Number(totalAmount) || 8000,
       venueName:
@@ -471,21 +580,21 @@ const BookAppointmentModal = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-lg rounded-3xl bg-[#fefaf7] border border-[#e8dcd0] shadow-2xl overflow-hidden max-h-[92vh] flex flex-col"
+        className="relative w-full max-w-lg rounded-3xl bg-glam-surface border border-glam-border/60 shadow-2xl overflow-hidden max-h-[92vh] flex flex-col"
       >
-        {/* Modal Header matching Reference Image */}
-        <div className="p-5 sm:p-6 pb-4 border-b border-[#f0e4d8] flex items-center justify-between shrink-0 bg-[#fefaf7]">
-          <h2 className="text-xl font-bold font-serif text-[#2d1b2e] tracking-tight">
+        {/* Modal Header */}
+        <div className="p-5 sm:p-6 pb-4 border-b border-glam-border/40 flex items-center justify-between shrink-0 bg-glam-surface">
+          <h2 className="text-xl font-bold font-outfit text-glam-text tracking-tight">
             {isEditMode ? (
               <>
                 Edit{" "}
-                <span className="font-sans font-light text-[#8b6340]">/</span>{" "}
+                <span className="font-sans font-light text-glam-accent">/</span>{" "}
                 Booking
               </>
             ) : (
               <>
                 New Lead{" "}
-                <span className="font-sans font-light text-[#8b6340]">/</span>{" "}
+                <span className="font-sans font-light text-glam-accent">/</span>{" "}
                 Booking
               </>
             )}
@@ -493,7 +602,8 @@ const BookAppointmentModal = ({
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-[#f5eae0]/70 hover:bg-[#f5eae0] flex items-center justify-center text-glam-text transition-colors cursor-pointer"
+            className="w-8 h-8 rounded-full bg-glam-surface-alt text-glam-text-muted hover:text-glam-text flex items-center justify-center transition-colors cursor-pointer"
+            aria-label="Close modal"
           >
             <X size={15} />
           </button>
@@ -504,7 +614,7 @@ const BookAppointmentModal = ({
           onSubmit={handleSubmit}
           className="flex-1 overflow-y-auto scrollbar-none p-5 sm:p-6 space-y-4"
         >
-          {/* 1. CLIENT Dropdown matching Reference Image */}
+          {/* 1. CLIENT Dropdown */}
           <div className="relative z-50">
             <ThemeSelect
               label="Client"
@@ -519,7 +629,7 @@ const BookAppointmentModal = ({
           {/* 2. CLIENT NAME * & PHONE NUMBER * */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-[11px] font-bold tracking-wider text-[#8b6340] uppercase mb-1.5">
+              <label className="block text-[11px] font-bold tracking-wider text-glam-accent uppercase mb-1.5">
                 Client Name <span className="text-rose-500">*</span>
               </label>
               <input
@@ -532,14 +642,14 @@ const BookAppointmentModal = ({
                     setErrors({ ...errors, clientName: "" });
                 }}
                 className={`w-full h-11 px-3.5 rounded-xl border ${
-                  errors.clientName ? "border-rose-400" : "border-[#e6d5c7]"
-                } bg-[#fdf8f4]/60 text-sm font-medium text-[#2d1b2e] placeholder:text-[#2d1b2e]/35 focus:outline-none focus:border-[#c9956c] transition-colors`}
+                  errors.clientName ? "border-rose-400" : "border-glam-border/60"
+                } bg-glam-surface-alt/40 text-sm font-medium text-glam-text placeholder:text-glam-text-muted/40 focus:outline-none focus:border-glam-accent focus:bg-glam-surface transition-colors`}
                 required
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold tracking-wider text-[#8b6340] uppercase mb-1.5">
+              <label className="block text-[11px] font-bold tracking-wider text-glam-accent uppercase mb-1.5">
                 Phone Number <span className="text-rose-500">*</span>
               </label>
               <input
@@ -552,8 +662,8 @@ const BookAppointmentModal = ({
                     setErrors({ ...errors, clientPhone: "" });
                 }}
                 className={`w-full h-11 px-3.5 rounded-xl border ${
-                  errors.clientPhone ? "border-rose-400" : "border-[#e6d5c7]"
-                } bg-[#fdf8f4]/60 text-sm font-medium text-[#2d1b2e] placeholder:text-[#2d1b2e]/35 focus:outline-none focus:border-[#c9956c] transition-colors`}
+                  errors.clientPhone ? "border-rose-400" : "border-glam-border/60"
+                } bg-glam-surface-alt/40 text-sm font-medium text-glam-text placeholder:text-glam-text-muted/40 focus:outline-none focus:border-glam-accent focus:bg-glam-surface transition-colors`}
                 required
               />
             </div>
@@ -561,19 +671,19 @@ const BookAppointmentModal = ({
 
           {/* 3. EVENT DATE */}
           <div>
-            <label className="block text-[11px] font-bold tracking-wider text-[#8b6340] uppercase mb-1.5">
+            <label className="block text-[11px] font-bold tracking-wider text-glam-accent uppercase mb-1.5">
               Event Date
             </label>
             <div className="relative">
               <Calendar
                 size={16}
-                className="absolute left-3.5 top-3.5 text-[#2d1b2e]/70 pointer-events-none"
+                className="absolute left-3.5 top-3.5 text-glam-accent pointer-events-none"
               />
               <input
                 type="date"
                 value={eventDate}
                 onChange={(e) => setEventDate(e.target.value)}
-                className="w-full h-11 pl-10 pr-3.5 rounded-xl border border-[#e6d5c7] bg-[#fdf8f4]/60 text-sm font-medium text-[#2d1b2e] focus:outline-none focus:border-[#c9956c] transition-colors cursor-pointer"
+                className="w-full h-11 pl-10 pr-3.5 rounded-xl border border-glam-border/60 bg-glam-surface-alt/40 text-sm font-medium text-glam-text focus:outline-none focus:border-glam-accent focus:bg-glam-surface transition-colors cursor-pointer scheme-light dark:scheme-dark"
                 required
               />
             </div>
@@ -585,19 +695,19 @@ const BookAppointmentModal = ({
               type="checkbox"
               checked={showAvailableSlots}
               onChange={(e) => setShowAvailableSlots(e.target.checked)}
-              className="w-4 h-4 rounded border-[#e6d5c7] text-[#c9956c] focus:ring-0 cursor-pointer accent-[#c9956c]"
+              className="w-4 h-4 rounded border-glam-border/60 text-glam-accent focus:ring-0 cursor-pointer accent-glam-accent"
             />
-            <span className="text-[11px] font-bold tracking-wider text-[#8b6340] uppercase">
+            <span className="text-[11px] font-bold tracking-wider text-glam-accent uppercase">
               Show Available Slots
             </span>
           </label>
 
           {/* 5. START TIME Time Picker Card */}
           <div>
-            <label className="block text-[11px] font-bold tracking-wider text-[#8b6340] uppercase mb-1.5">
+            <label className="block text-[11px] font-bold tracking-wider text-glam-accent uppercase mb-1.5">
               Start Time
             </label>
-            <div className="rounded-2xl border border-[#e6d5c7] bg-[#fdf8f4]/40 p-4 sm:p-5 flex flex-col items-center justify-center">
+            <div className="rounded-2xl border border-glam-border/50 bg-glam-surface-alt/30 p-4 sm:p-5 flex flex-col items-center justify-center">
               {/* Dial Columns */}
               <div className="flex items-center justify-center gap-2 sm:gap-3">
                 {/* Hours column */}
@@ -605,18 +715,18 @@ const BookAppointmentModal = ({
                   <button
                     type="button"
                     onClick={() => adjustHour(-1)}
-                    className="text-sm font-serif text-[#2d1b2e]/30 hover:text-[#2d1b2e]/60 cursor-pointer select-none h-6 flex items-center justify-center"
+                    className="text-sm font-serif text-glam-text-muted/40 hover:text-glam-text cursor-pointer select-none h-6 flex items-center justify-center"
                     aria-label="Previous hour"
                   >
                     {prevHour}
                   </button>
-                  <div className="w-14 sm:w-16 h-12 rounded-xl bg-[#f5eae0] border border-[#e2d0c0] flex items-center justify-center text-xl sm:text-2xl font-bold font-serif text-[#2d1b2e] shadow-2xs select-none">
+                  <div className="w-14 sm:w-16 h-12 rounded-xl bg-glam-surface-alt border border-glam-border/60 flex items-center justify-center text-xl sm:text-2xl font-bold font-serif text-glam-text shadow-2xs select-none">
                     {formattedHour}
                   </div>
                   <button
                     type="button"
                     onClick={() => adjustHour(1)}
-                    className="text-sm font-serif text-[#2d1b2e]/30 hover:text-[#2d1b2e]/60 cursor-pointer select-none h-6 flex items-center justify-center"
+                    className="text-sm font-serif text-glam-text-muted/40 hover:text-glam-text cursor-pointer select-none h-6 flex items-center justify-center"
                     aria-label="Next hour"
                   >
                     {nextHour}
@@ -624,7 +734,7 @@ const BookAppointmentModal = ({
                 </div>
 
                 {/* Colon separator */}
-                <span className="text-xl font-bold text-[#2d1b2e] pb-1 select-none">
+                <span className="text-xl font-bold text-glam-text pb-1 select-none">
                   :
                 </span>
 
@@ -633,18 +743,18 @@ const BookAppointmentModal = ({
                   <button
                     type="button"
                     onClick={() => adjustMinute(-5)}
-                    className="text-sm font-serif text-[#2d1b2e]/30 hover:text-[#2d1b2e]/60 cursor-pointer select-none h-6 flex items-center justify-center"
+                    className="text-sm font-serif text-glam-text-muted/40 hover:text-glam-text cursor-pointer select-none h-6 flex items-center justify-center"
                     aria-label="Previous minute"
                   >
                     {prevMinute}
                   </button>
-                  <div className="w-14 sm:w-16 h-12 rounded-xl bg-[#f5eae0] border border-[#e2d0c0] flex items-center justify-center text-xl sm:text-2xl font-bold font-serif text-[#2d1b2e] shadow-2xs select-none">
+                  <div className="w-14 sm:w-16 h-12 rounded-xl bg-glam-surface-alt border border-glam-border/60 flex items-center justify-center text-xl sm:text-2xl font-bold font-serif text-glam-text shadow-2xs select-none">
                     {formattedMinute}
                   </div>
                   <button
                     type="button"
                     onClick={() => adjustMinute(5)}
-                    className="text-sm font-serif text-[#2d1b2e]/30 hover:text-[#2d1b2e]/60 cursor-pointer select-none h-6 flex items-center justify-center"
+                    className="text-sm font-serif text-glam-text-muted/40 hover:text-glam-text cursor-pointer select-none h-6 flex items-center justify-center"
                     aria-label="Next minute"
                   >
                     {nextMinute}
@@ -656,21 +766,21 @@ const BookAppointmentModal = ({
                   <button
                     type="button"
                     onClick={togglePeriod}
-                    className="text-sm font-serif text-[#2d1b2e]/30 hover:text-[#2d1b2e]/60 cursor-pointer select-none h-6 flex items-center justify-center"
+                    className="text-sm font-serif text-glam-text-muted/40 hover:text-glam-text cursor-pointer select-none h-6 flex items-center justify-center"
                   >
                     {period === "AM" ? "PM" : "AM"}
                   </button>
                   <button
                     type="button"
                     onClick={togglePeriod}
-                    className="w-14 sm:w-16 h-12 rounded-xl bg-[#f5eae0] border border-[#e2d0c0] flex items-center justify-center text-lg sm:text-xl font-bold font-serif text-[#2d1b2e] shadow-2xs cursor-pointer select-none"
+                    className="w-14 sm:w-16 h-12 rounded-xl bg-glam-surface-alt border border-glam-border/60 flex items-center justify-center text-lg sm:text-xl font-bold font-serif text-glam-text shadow-2xs cursor-pointer select-none"
                   >
                     {period}
                   </button>
                   <button
                     type="button"
                     onClick={togglePeriod}
-                    className="text-sm font-serif text-[#2d1b2e]/30 hover:text-[#2d1b2e]/60 cursor-pointer select-none h-6 flex items-center justify-center"
+                    className="text-sm font-serif text-glam-text-muted/40 hover:text-glam-text cursor-pointer select-none h-6 flex items-center justify-center"
                   >
                     {period === "AM" ? "PM" : "AM"}
                   </button>
@@ -678,13 +788,13 @@ const BookAppointmentModal = ({
               </div>
             </div>
 
-            {/* Availability Pill matching Reference Images 1 & 3 */}
+            {/* Availability Pill */}
             {showAvailableSlots ? (
-              <div className="mt-2.5 w-full py-2 px-3 rounded-xl bg-[#e8f5ed] border border-[#c3e6cb] text-emerald-800 text-xs font-semibold text-center flex items-center justify-center gap-1.5 transition-all">
+              <div className="mt-2.5 w-full py-2 px-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-semibold text-center flex items-center justify-center gap-1.5 transition-all">
                 <span>✓ This time slot looks available</span>
               </div>
             ) : (
-              <div className="mt-2.5 w-full py-2 px-3 rounded-xl bg-[#fdf2f2] border border-[#f5c6cb] text-[#c53030] text-xs font-semibold text-center flex items-center justify-center gap-1.5 transition-all">
+              <div className="mt-2.5 w-full py-2 px-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs font-semibold text-center flex items-center justify-center gap-1.5 transition-all">
                 <span>
                   ✕ Artist may be unavailable — we'll confirm after review
                 </span>
@@ -692,48 +802,81 @@ const BookAppointmentModal = ({
             )}
 
             {/* Calculated End Time */}
-            <p className="text-xs font-medium text-[#2d1b2e]/70 mt-1.5">
+            <p className="text-xs font-medium text-glam-text-muted mt-1.5">
               Ends at:{" "}
-              <span className="font-bold text-[#2d1b2e]">
+              <span className="font-bold text-glam-text">
                 {calculatedEndTime}
               </span>
             </p>
           </div>
 
-          {/* 6. SERVICE PACKAGE matching Reference Image */}
-          <div className="relative z-40">
-            <ThemeSelect
-              label="Service Package"
-              value={selectedServiceId}
-              onChange={setSelectedServiceId}
-              options={serviceOptions}
-              placeholder="— Select a service package —"
-              searchable={true}
-              searchPlaceholder="Search service package..."
-            />
+          {/* 6. SERVICE CATEGORY / MAKEUP TYPE & SERVICE PACKAGE (Cascading Two-Step Selection) */}
+          <div className="space-y-3.5">
+            <div className="relative z-45">
+              <ThemeSelect
+                label="Makeup / Service Type"
+                value={selectedCategory}
+                onChange={(cat) => {
+                  setSelectedCategory(cat);
+                  // If category changed and selected service doesn't belong to new category, reset package
+                  if (
+                    cat &&
+                    cat !== "All" &&
+                    selectedService &&
+                    selectedService.category !== cat
+                  ) {
+                    setSelectedServiceId("");
+                  }
+                }}
+                options={categoryOptions}
+                placeholder="— All Categories —"
+              />
+            </div>
+
+            <div className="relative z-40">
+              <ThemeSelect
+                label="Service Package"
+                value={selectedServiceId}
+                onChange={(sId) => {
+                  setSelectedServiceId(sId);
+                  const matched = availableServices.find((s) => s.id === sId);
+                  if (matched?.category && selectedCategory === "All") {
+                    setSelectedCategory(matched.category);
+                  }
+                }}
+                options={serviceOptions}
+                placeholder={
+                  selectedCategory && selectedCategory !== "All"
+                    ? `— Select ${selectedCategory} package —`
+                    : "— Select a service package —"
+                }
+                searchable={true}
+                searchPlaceholder="Search service package..."
+              />
+            </div>
           </div>
 
           {/* 7. NUMBER OF PERSONS Stepper */}
           <div>
-            <label className="block text-[11px] font-bold tracking-wider text-[#8b6340] uppercase mb-1.5">
+            <label className="block text-[11px] font-bold tracking-wider text-glam-accent uppercase mb-1.5">
               Number of Persons
             </label>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => setPersonsCount((prev) => Math.max(1, prev - 1))}
-                className="w-10 h-10 rounded-xl border border-[#e6d5c7] bg-[#fdf8f4]/60 flex items-center justify-center font-bold text-sm text-[#2d1b2e] hover:bg-[#f5eae0] transition-colors cursor-pointer"
+                className="w-10 h-10 rounded-xl border border-glam-border/60 bg-glam-surface-alt/50 flex items-center justify-center font-bold text-sm text-glam-text hover:bg-glam-surface-alt transition-colors cursor-pointer"
                 aria-label="Decrease persons"
               >
                 −
               </button>
-              <span className="w-8 text-center font-bold font-serif text-base text-[#2d1b2e]">
+              <span className="w-8 text-center font-bold font-serif text-base text-glam-text">
                 {personsCount}
               </span>
               <button
                 type="button"
                 onClick={() => setPersonsCount((prev) => prev + 1)}
-                className="w-10 h-10 rounded-xl border border-[#e6d5c7] bg-[#fdf8f4]/60 flex items-center justify-center font-bold text-sm text-[#2d1b2e] hover:bg-[#f5eae0] transition-colors cursor-pointer"
+                className="w-10 h-10 rounded-xl border border-glam-border/60 bg-glam-surface-alt/50 flex items-center justify-center font-bold text-sm text-glam-text hover:bg-glam-surface-alt transition-colors cursor-pointer"
                 aria-label="Increase persons"
               >
                 +
@@ -743,20 +886,20 @@ const BookAppointmentModal = ({
 
           {/* 8. ASSIGN TEAM & ARTISTS */}
           <div className="relative z-30">
-            <label className="block text-[11px] font-bold tracking-wider text-[#8b6340] uppercase mb-1.5">
+            <label className="block text-[11px] font-bold tracking-wider text-glam-accent uppercase mb-1.5">
               Assign Team & Artists ({selectedVendorIds.length} Selected)
             </label>
             <div className="relative">
               <button
                 type="button"
                 onClick={() => setIsVendorDropdownOpen((prev) => !prev)}
-                className="w-full h-11 px-3.5 pr-9 rounded-xl border border-[#e6d5c7] bg-[#fdf8f4]/60 text-sm font-medium text-left flex items-center justify-between text-[#2d1b2e] focus:outline-none focus:border-[#c9956c] transition-colors cursor-pointer"
+                className="w-full h-11 px-3.5 pr-9 rounded-xl border border-glam-border/60 bg-glam-surface-alt/40 text-sm font-medium text-left flex items-center justify-between text-glam-text focus:outline-none focus:border-glam-accent focus:bg-glam-surface transition-colors cursor-pointer"
               >
                 <span
                   className={
                     selectedVendorIds.length === 0
-                      ? "text-[#2d1b2e]/40 italic"
-                      : "text-[#2d1b2e]"
+                      ? "text-glam-text-muted/60 italic"
+                      : "text-glam-text"
                   }
                 >
                   {selectedVendorIds.length === 0
@@ -768,7 +911,7 @@ const BookAppointmentModal = ({
                         .filter(Boolean)
                         .join(", ")}
                 </span>
-                <div className="flex items-center gap-1 text-[#8b6340]">
+                <div className="flex items-center gap-1 text-glam-accent">
                   <UsersIcon size={15} />
                   <ChevronDown size={15} />
                 </div>
@@ -776,7 +919,7 @@ const BookAppointmentModal = ({
 
               {/* Vendor Multi-select Popover */}
               {isVendorDropdownOpen && (
-                <div className="absolute left-0 right-0 top-12 z-30 p-2 rounded-2xl bg-[#fefaf7] border border-[#e6d5c7] shadow-2xl max-h-48 overflow-y-auto scrollbar-none space-y-1">
+                <div className="absolute left-0 right-0 top-12 z-30 p-2 rounded-2xl bg-glam-surface border border-glam-border/60 shadow-2xl max-h-48 overflow-y-auto scrollbar-none space-y-1">
                   {initialVendors.map((v) => {
                     const isSelected = selectedVendorIds.includes(v.id);
                     return (
@@ -786,18 +929,18 @@ const BookAppointmentModal = ({
                         onClick={() => toggleVendor(v.id)}
                         className={`w-full p-2.5 rounded-xl text-left flex items-center justify-between text-xs transition-colors cursor-pointer ${
                           isSelected
-                            ? "bg-[#a87447] text-white font-semibold shadow-2xs"
-                            : "hover:bg-[#f5eae0]/70 text-[#2d1b2e] font-medium"
+                            ? "bg-glam-accent text-white font-semibold shadow-2xs"
+                            : "hover:bg-glam-surface-alt/80 text-glam-text font-medium"
                         }`}
                       >
                         <div>
                           <p className="font-semibold">{v.name}</p>
                           <p
                             className={`text-[10px] ${
-                              isSelected ? "text-white/80" : "text-[#8b6340]"
+                              isSelected ? "text-white/80" : "text-glam-text-muted"
                             }`}
                           >
-                            {v.role} · ₹{v.baseEventRate}
+                            {v.role} · ₹{v.baseEventRate ?? v.defaultPayout ?? 2000}
                           </p>
                         </div>
                         {isSelected && (
@@ -814,7 +957,7 @@ const BookAppointmentModal = ({
             </div>
           </div>
 
-          {/* 9. APPOINTMENT LOCATION & VENUE CATEGORY (Side by side when Venue, matching reference image) */}
+          {/* 9. APPOINTMENT LOCATION & VENUE CATEGORY */}
           <div
             className={`grid gap-3 sm:gap-4 relative z-20 ${
               locationType === "venue"
@@ -846,11 +989,11 @@ const BookAppointmentModal = ({
               />
             </div>
 
-            {/* Venue Category */}
+            {/* Venue Type / Pricing Tier */}
             {locationType === "venue" && (
               <div>
                 <ThemeSelect
-                  label="Venue Category"
+                  label="Venue Type / Pricing Tier"
                   value={venueCategory}
                   onChange={(val) => {
                     setVenueCategory(val);
@@ -859,28 +1002,28 @@ const BookAppointmentModal = ({
                     }
                   }}
                   options={venueCategoryOptions}
-                  placeholder="— Select Venue Category —"
+                  placeholder="— Select Venue Type / Tier —"
                   error={errors.venueCategory}
                 />
               </div>
             )}
           </div>
 
-          {/* 10. VENUE ADDRESS / EXACT LOCATION (Only when location is Venue, matching reference image) */}
+          {/* 10. VENUE ADDRESS / EXACT LOCATION */}
           {locationType === "venue" && (
             <div className="relative z-10">
-              <label className="block text-[11px] font-bold tracking-wider text-[#8b6340] uppercase mb-1.5">
-                Venue Address / Exact Location{" "}
+              <label className="block text-[11px] font-bold tracking-wider text-glam-accent uppercase mb-1.5">
+                Venue Name & Exact Location / Address{" "}
                 <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
                 <MapPin
                   size={16}
-                  className="absolute left-3.5 top-3.5 text-[#8b6340] pointer-events-none"
+                  className="absolute left-3.5 top-3.5 text-glam-accent pointer-events-none"
                 />
                 <input
                   type="text"
-                  placeholder="e.g. Taj Hotel, Nungambakkam, Chennai"
+                  placeholder="e.g. Taj West End, Grand Ballroom, Race Course Road"
                   value={venueAddress}
                   onChange={(e) => {
                     setVenueAddress(e.target.value);
@@ -889,8 +1032,8 @@ const BookAppointmentModal = ({
                     }
                   }}
                   className={`w-full h-11 pl-10 pr-3.5 rounded-xl border ${
-                    errors.venueAddress ? "border-rose-400" : "border-[#e6d5c7]"
-                  } bg-[#fdf8f4]/60 text-sm font-medium text-[#2d1b2e] placeholder:text-[#2d1b2e]/35 focus:outline-none focus:border-[#c9956c] transition-colors`}
+                    errors.venueAddress ? "border-rose-400" : "border-glam-border/60"
+                  } bg-glam-surface-alt/40 text-sm font-medium text-glam-text placeholder:text-glam-text-muted/40 focus:outline-none focus:border-glam-accent focus:bg-glam-surface transition-colors`}
                   required
                 />
               </div>
@@ -905,31 +1048,31 @@ const BookAppointmentModal = ({
           {/* 10. Financial Grid (2 columns x 2 rows) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-[11px] font-bold tracking-wider text-[#8b6340] uppercase mb-1.5">
+              <label className="block text-[11px] font-bold tracking-wider text-glam-accent uppercase mb-1.5">
                 Total Package Amount (₹)
               </label>
               <input
                 type="number"
                 value={totalAmount}
                 onChange={(e) => setTotalAmount(e.target.value)}
-                className="w-full h-11 px-3.5 rounded-xl border border-[#e6d5c7] bg-[#fdf8f4]/60 text-sm font-bold text-[#2d1b2e] focus:outline-none focus:border-[#c9956c] transition-colors"
+                className="w-full h-11 px-3.5 rounded-xl border border-glam-border/60 bg-glam-surface-alt/40 text-sm font-bold text-glam-text focus:outline-none focus:border-glam-accent focus:bg-glam-surface transition-colors"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold tracking-wider text-[#8b6340] uppercase mb-1.5">
+              <label className="block text-[11px] font-bold tracking-wider text-glam-accent uppercase mb-1.5">
                 Advance Required (₹)
               </label>
               <input
                 type="number"
                 value={advanceRequired}
                 onChange={(e) => setAdvanceRequired(e.target.value)}
-                className="w-full h-11 px-3.5 rounded-xl border border-[#e6d5c7] bg-[#fdf8f4]/60 text-sm font-bold text-[#2d1b2e] focus:outline-none focus:border-[#c9956c] transition-colors"
+                className="w-full h-11 px-3.5 rounded-xl border border-glam-border/60 bg-glam-surface-alt/40 text-sm font-bold text-glam-text focus:outline-none focus:border-glam-accent focus:bg-glam-surface transition-colors"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold tracking-wider text-[#8b6340] uppercase mb-1.5">
+              <label className="block text-[11px] font-bold tracking-wider text-glam-accent uppercase mb-1.5">
                 Vendor Cost (₹){" "}
                 <span className="font-normal lowercase text-[10px] text-glam-text-muted">
                   internal
@@ -939,15 +1082,15 @@ const BookAppointmentModal = ({
                 type="number"
                 value={vendorCost}
                 onChange={(e) => setVendorCost(e.target.value)}
-                className="w-full h-11 px-3.5 rounded-xl border border-[#e6d5c7] bg-[#fdf8f4]/60 text-sm font-bold text-[#2d1b2e] focus:outline-none focus:border-[#c9956c] transition-colors"
+                className="w-full h-11 px-3.5 rounded-xl border border-glam-border/60 bg-glam-surface-alt/40 text-sm font-bold text-glam-text focus:outline-none focus:border-glam-accent focus:bg-glam-surface transition-colors"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold tracking-wider text-[#8b6340] uppercase mb-1.5">
+              <label className="block text-[11px] font-bold tracking-wider text-glam-accent uppercase mb-1.5">
                 Estimated Profit (₹)
               </label>
-              <div className="w-full h-11 px-3.5 rounded-xl border border-[#e6d5c7] bg-[#fdf8f4]/40 flex items-center text-sm font-bold text-emerald-700 dark:text-emerald-400">
+              <div className="w-full h-11 px-3.5 rounded-xl border border-glam-border/60 bg-glam-surface-alt/30 flex items-center text-sm font-bold text-emerald-600 dark:text-emerald-400">
                 {estimatedProfit !== null
                   ? `₹${estimatedProfit.toLocaleString("en-IN")}`
                   : "—"}
@@ -957,7 +1100,7 @@ const BookAppointmentModal = ({
 
           {/* 11. NOTES / CLIENT REQUIREMENTS */}
           <div>
-            <label className="block text-[11px] font-bold tracking-wider text-[#8b6340] uppercase mb-1.5">
+            <label className="block text-[11px] font-bold tracking-wider text-glam-accent uppercase mb-1.5">
               Notes / Client Requirements
             </label>
             <textarea
@@ -965,24 +1108,24 @@ const BookAppointmentModal = ({
               placeholder="e.g. Skin allergies, preferred look, early morning slot"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="w-full p-3.5 rounded-xl border border-[#e6d5c7] bg-[#fdf8f4]/60 text-sm font-medium text-[#2d1b2e] placeholder:text-[#2d1b2e]/35 focus:outline-none focus:border-[#c9956c] transition-colors resize-none"
+              className="w-full p-3.5 rounded-xl border border-glam-border/60 bg-glam-surface-alt/40 text-sm font-medium text-glam-text placeholder:text-glam-text-muted/40 focus:outline-none focus:border-glam-accent focus:bg-glam-surface transition-colors resize-none"
             />
           </div>
         </form>
 
-        {/* Modal Footer matching Reference Image */}
-        <div className="p-4 sm:p-5 border-t border-[#f0e4d8] bg-[#fefaf7] flex items-center justify-end gap-3 shrink-0">
+        {/* Modal Footer */}
+        <div className="p-4 sm:p-5 border-t border-glam-border/40 bg-glam-surface flex items-center justify-end gap-3 shrink-0">
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2.5 rounded-xl border border-[#d8c8ba] bg-[#fbf6f2] hover:bg-[#f3ebe4] text-xs font-semibold text-[#2d1b2e] transition-colors cursor-pointer"
+            className="px-5 py-2.5 rounded-xl border border-glam-border/60 bg-glam-surface-alt hover:bg-glam-surface-alt/80 text-xs font-semibold text-glam-text transition-colors cursor-pointer"
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={handleSubmit}
-            className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#c97587] to-[#b85c70] hover:from-[#be6c7e] hover:to-[#ac5367] text-white text-xs font-semibold shadow-xs transition-all cursor-pointer"
+            className="px-6 py-2.5 rounded-xl bg-linear-to-r from-glam-accent to-glam-accent-2 hover:opacity-90 text-white text-xs font-semibold shadow-xs transition-all cursor-pointer"
           >
             {isEditMode ? "Save Changes" : "Create Booking"}
           </button>

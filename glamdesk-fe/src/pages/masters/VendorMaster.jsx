@@ -144,7 +144,7 @@ const VendorTableView = ({
                   {/* Event Payout */}
                   <td className="py-3.5 px-4">
                     <span className="font-outfit font-normal text-glam-text">
-                      ₹{vendor.baseEventRate.toLocaleString("en-IN")}
+                      ₹{Number(vendor.baseEventRate ?? vendor.defaultPayout ?? 0).toLocaleString("en-IN")}
                     </span>
                     <span className="text-[10px] text-glam-text-muted">
                       {" "}
@@ -154,15 +154,15 @@ const VendorTableView = ({
 
                   {/* Extra Head */}
                   <td className="py-3.5 px-4 text-glam-text-muted font-normal">
-                    {vendor.perExtraHeadRate > 0
-                      ? `+₹${vendor.perExtraHeadRate.toLocaleString("en-IN")}`
+                    {Number(vendor.perExtraHeadRate || 0) > 0
+                      ? `+₹${Number(vendor.perExtraHeadRate).toLocaleString("en-IN")}`
                       : "Included"}
                   </td>
 
                   {/* Travel */}
                   <td className="py-3.5 px-4 text-glam-text-muted font-normal">
-                    {vendor.travelSurcharge > 0
-                      ? `+₹${vendor.travelSurcharge.toLocaleString("en-IN")}`
+                    {Number(vendor.travelSurcharge || 0) > 0
+                      ? `+₹${Number(vendor.travelSurcharge).toLocaleString("en-IN")}`
                       : "Local Included"}
                   </td>
 
@@ -196,7 +196,7 @@ const VendorTableView = ({
                         {!vendor.isActive
                           ? "Inactive"
                           : hasBlackouts
-                            ? `${vendor.blackouts.length} Blocked`
+                            ? `${vendor.blackouts?.length || 0} Blocked`
                             : "Available"}
                       </span>
                     </button>
@@ -263,7 +263,7 @@ const VendorMaster = () => {
     const total = vendors.length;
     const active = vendors.filter((v) => v.isActive).length;
     const sumRates = vendors.reduce(
-      (acc, v) => acc + (v.baseEventRate || 0),
+      (acc, v) => acc + Number(v.baseEventRate ?? v.defaultPayout ?? 0),
       0,
     );
     const avgRate = total > 0 ? Math.round(sumRates / total) : 0;
@@ -294,10 +294,12 @@ const VendorMaster = () => {
         return matchesRole && matchesSearch;
       })
       .sort((a, b) => {
+        const rateA = Number(a.baseEventRate ?? a.defaultPayout ?? 0);
+        const rateB = Number(b.baseEventRate ?? b.defaultPayout ?? 0);
         if (sortBy === "recent") return (b.createdAt || 0) - (a.createdAt || 0);
-        if (sortBy === "rate-high") return b.baseEventRate - a.baseEventRate;
-        if (sortBy === "rate-low") return a.baseEventRate - b.baseEventRate;
-        if (sortBy === "name") return a.name.localeCompare(b.name);
+        if (sortBy === "rate-high") return rateB - rateA;
+        if (sortBy === "rate-low") return rateA - rateB;
+        if (sortBy === "name") return (a.name || "").localeCompare(b.name || "");
         if (sortBy === "completed")
           return (b.completedEvents || 0) - (a.completedEvents || 0);
         return (b.createdAt || 0) - (a.createdAt || 0);

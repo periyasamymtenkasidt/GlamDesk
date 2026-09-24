@@ -4,7 +4,10 @@ const cors = require("cors");
 const morgan = require("morgan");
 
 const connectDB = require("./shared/config/db");
-const { notFoundHandler, errorHandler } = require("./shared/middleware/errorHandler");
+const {
+  notFoundHandler,
+  errorHandler,
+} = require("./shared/middleware/errorHandler");
 
 // Import Masters Feature Modules
 const serviceRoutes = require("./modules/masters/services/service.routes");
@@ -22,7 +25,7 @@ app.use(
   cors({
     origin: process.env.CORS_ORIGIN || "http://localhost:5173",
     credentials: true,
-  })
+  }),
 );
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -53,7 +56,9 @@ app.use(errorHandler);
 // Start Server if executed directly
 if (require.main === module) {
   app.listen(PORT, () => {
-    console.log(`[GlamDesk-BE] Server running in ${process.env.NODE_ENV || "development"} mode on http://localhost:${PORT}`);
+    console.log(
+      `[GlamDesk-BE] Server running in ${process.env.NODE_ENV || "development"} mode on http://localhost:${PORT}`,
+    );
     console.log(`[GlamDesk-BE] Masters API Endpoints:`);
     console.log(`  - Services: http://localhost:${PORT}/api/masters/services`);
     console.log(`  - Venues:   http://localhost:${PORT}/api/masters/venues`);

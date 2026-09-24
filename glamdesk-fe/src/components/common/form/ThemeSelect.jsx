@@ -134,7 +134,7 @@ const ThemeSelect = ({
       className={`relative w-full ${isOpen ? "z-50" : ""} ${className}`}
     >
       {label && (
-        <label className="block text-[11px] font-bold tracking-wider text-[#8b6340] uppercase mb-1.5">
+        <label className="block text-[11px] font-bold tracking-wider text-glam-accent uppercase mb-1.5">
           {label}
           {required && <span className="text-rose-500 ml-0.5">*</span>}
         </label>
@@ -152,26 +152,26 @@ const ThemeSelect = ({
         aria-expanded={isOpen}
         className={`w-full h-11 px-3.5 rounded-xl border transition-colors flex items-center justify-between text-left cursor-pointer ${
           error
-            ? "border-rose-400 bg-rose-500/5 text-rose-700"
+            ? "border-rose-400 bg-rose-500/10 text-rose-500"
             : isOpen
-            ? "border-[#c9956c] bg-[#fdf8f4] shadow-xs"
-            : "border-[#e6d5c7] bg-[#fdf8f4]/60 hover:bg-[#fdf8f4] text-[#2d1b2e]"
-        } ${disabled ? "opacity-60 cursor-not-allowed bg-neutral-100" : ""} ${triggerClassName}`}
+            ? "border-glam-accent bg-glam-surface shadow-xs text-glam-text"
+            : "border-glam-border/60 bg-glam-surface-alt/40 hover:bg-glam-surface-alt/70 text-glam-text"
+        } ${disabled ? "opacity-60 cursor-not-allowed bg-glam-surface-alt" : ""} ${triggerClassName}`}
       >
         <div className="flex items-center gap-2.5 truncate min-w-0 pr-2">
-          {Icon && <Icon size={15} className="text-[#8b6340] shrink-0" />}
+          {Icon && <Icon size={15} className="text-glam-accent shrink-0" />}
           {selectedOption ? (
-            <span className="text-sm font-medium text-[#2d1b2e] truncate">
+            <span className="text-sm font-medium text-glam-text truncate">
               {selectedOption.label}
             </span>
           ) : (
-            <span className="text-sm font-normal text-[#2d1b2e]/45 truncate">
+            <span className="text-sm font-normal text-glam-text-muted/60 truncate">
               {placeholder}
             </span>
           )}
         </div>
 
-        <div className="shrink-0 text-[#8b6340] ml-1">
+        <div className="shrink-0 text-glam-accent ml-1">
           {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
         </div>
       </button>
@@ -179,7 +179,7 @@ const ThemeSelect = ({
       {/* Dropdown Menu Popover */}
       {isOpen && (
         <div
-          className={`absolute left-0 right-0 z-50 p-2 rounded-2xl bg-[#fefaf7] border border-[#e6d5c7] shadow-2xl ${
+          className={`absolute left-0 right-0 z-50 p-2 rounded-2xl bg-glam-surface border border-glam-border/60 shadow-2xl ${
             dropUp ? "bottom-full mb-1.5" : "top-full mt-1.5"
           } ${menuClassName}`}
         >
@@ -188,7 +188,7 @@ const ThemeSelect = ({
             <div className="relative mb-2">
               <Search
                 size={15}
-                className="absolute left-3 top-2.5 text-[#8b6340]/70 pointer-events-none"
+                className="absolute left-3 top-2.5 text-glam-accent/70 pointer-events-none"
               />
               <input
                 ref={searchInputRef}
@@ -196,7 +196,7 @@ const ThemeSelect = ({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={searchPlaceholder}
-                className="w-full h-9 pl-9 pr-3 rounded-xl border border-[#e6d5c7] bg-white text-xs font-medium text-[#2d1b2e] placeholder:text-[#2d1b2e]/40 focus:outline-none focus:border-[#c9956c] transition-colors"
+                className="w-full h-9 pl-9 pr-3 rounded-xl border border-glam-border/60 bg-glam-surface-alt text-xs font-medium text-glam-text placeholder:text-glam-text-muted/50 focus:outline-none focus:border-glam-accent transition-colors"
                 onClick={(e) => e.stopPropagation()}
               />
             </div>
@@ -208,7 +208,7 @@ const ThemeSelect = ({
             role="listbox"
           >
             {filteredOptions.length === 0 ? (
-              <div className="px-3 py-3.5 text-center text-xs text-[#2d1b2e]/50 font-medium">
+              <div className="px-3 py-3.5 text-center text-xs text-glam-text-muted font-medium">
                 {emptyMessage}
               </div>
             ) : (
@@ -224,8 +224,8 @@ const ThemeSelect = ({
                     onClick={() => handleSelect(opt.value)}
                     className={`w-full px-3.5 py-2.5 rounded-xl text-left flex items-center justify-between text-sm transition-all cursor-pointer ${
                       isSelected
-                        ? "bg-[#a87447] text-white font-medium shadow-2xs"
-                        : "text-[#2d1b2e] hover:bg-[#f5eae0]/70 font-medium"
+                        ? "bg-glam-accent text-white font-medium shadow-2xs"
+                        : "text-glam-text hover:bg-glam-surface-alt font-medium"
                     }`}
                   >
                     <div className="truncate pr-2">
@@ -233,7 +233,7 @@ const ThemeSelect = ({
                       {opt.sublabel && (
                         <span
                           className={`block text-xs truncate ${
-                            isSelected ? "text-white/80" : "text-[#8b6340]/80"
+                            isSelected ? "text-white/80" : "text-glam-text-muted"
                           }`}
                         >
                           {opt.sublabel}
@@ -256,7 +256,7 @@ const ThemeSelect = ({
       )}
 
       {hint && !error && (
-        <p className="text-[10px] text-[#8b6340] mt-1">{hint}</p>
+        <p className="text-[10px] text-glam-text-muted mt-1">{hint}</p>
       )}
     </div>
   );

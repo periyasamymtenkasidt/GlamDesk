@@ -9,12 +9,14 @@ const {
   deleteVenue,
   getVenueTypes,
   createVenueType,
+  updateVenueType,
   deleteVenueType,
 } = require("./venue.controller");
 
 // Venue Type Routes (Before :id param)
 router.get("/types", getVenueTypes);
 router.post("/types", createVenueType);
+router.put("/types/:id", updateVenueType);
 router.delete("/types/:id", deleteVenueType);
 
 // Venue Routes

@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const { Service, ServiceCategory } = require("./service.model");
 const { successResponse, errorResponse } = require("../../../shared/utils/response");
 
@@ -184,12 +185,50 @@ const createCategory = async (req, res, next) => {
 };
 
 /**
+ * Update service category
+ * PUT /api/masters/services/categories/:id
+ */
+const updateCategory = async (req, res, next) => {
+  try {
+    const { name, icon, description, order, isActive } = req.body;
+    const category = mongoose.isValidObjectId(req.params.id)
+      ? await ServiceCategory.findById(req.params.id)
+      : await ServiceCategory.findOne({ name: req.params.id });
+
+    if (!category) {
+      return errorResponse(res, "Category not found", 404);
+    }
+
+    const oldName = category.name;
+
+    if (name) category.name = name.trim();
+    if (icon !== undefined) category.icon = icon;
+    if (description !== undefined) category.description = description;
+    if (order !== undefined) category.order = Number(order);
+    if (isActive !== undefined) category.isActive = Boolean(isActive);
+
+    await category.save();
+
+    // Cascade update to linked services if name changed
+    if (name && oldName !== category.name) {
+      await Service.updateMany({ category: oldName }, { category: category.name });
+    }
+
+    return successResponse(res, category, "Category updated successfully");
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * Delete service category
  * DELETE /api/masters/services/categories/:id
  */
 const deleteCategory = async (req, res, next) => {
   try {
-    const category = await ServiceCategory.findByIdAndDelete(req.params.id);
+    const category = mongoose.isValidObjectId(req.params.id)
+      ? await ServiceCategory.findByIdAndDelete(req.params.id)
+      : await ServiceCategory.findOneAndDelete({ name: req.params.id });
     if (!category) {
       return errorResponse(res, "Category not found", 404);
     }
@@ -208,5 +247,6 @@ module.exports = {
   deleteService,
   getCategories,
   createCategory,
+  updateCategory,
   deleteCategory,
 };

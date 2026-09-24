@@ -10,6 +10,7 @@ export const appointmentStatuses = [
   "In-Progress",
   "Completed",
   "Cancelled",
+  "Rejected",
 ];
 
 export const initialAppointments = [

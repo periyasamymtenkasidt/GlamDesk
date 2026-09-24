@@ -144,7 +144,7 @@ const VendorProfilePage = () => {
       slot: "03:00 AM - 09:00 AM",
       role: vendor.role,
       venue: "ITC Grand Chola, Chennai",
-      payout: vendor.baseEventRate,
+      payout: Number(vendor.baseEventRate ?? vendor.defaultPayout ?? 2500),
       status: "Upcoming",
     },
     {
@@ -154,7 +154,7 @@ const VendorProfilePage = () => {
       slot: "04:30 AM - 10:00 AM",
       role: vendor.role,
       venue: "Mayor Ramanathan Hall, Chennai",
-      payout: vendor.baseEventRate + vendor.perExtraHeadRate,
+      payout: Number(vendor.baseEventRate ?? vendor.defaultPayout ?? 2500) + Number(vendor.perExtraHeadRate || 0),
       status: "Completed",
     },
     {
@@ -164,7 +164,7 @@ const VendorProfilePage = () => {
       slot: "02:00 PM - 08:00 PM",
       role: vendor.role,
       venue: "Taj Coromandel, Chennai",
-      payout: vendor.baseEventRate,
+      payout: Number(vendor.baseEventRate ?? vendor.defaultPayout ?? 2500),
       status: "Completed",
     },
   ];
@@ -405,7 +405,7 @@ const VendorProfilePage = () => {
               </div>
               <div className="mt-2">
                 <span className="text-2xl font-bold font-outfit text-glam-text">
-                  ₹{vendor.baseEventRate.toLocaleString("en-IN")}
+                  ₹{Number(vendor.baseEventRate ?? vendor.defaultPayout ?? 0).toLocaleString("en-IN")}
                 </span>
                 <span className="text-xs text-glam-text-muted font-normal ml-1">
                   / event
@@ -455,8 +455,8 @@ const VendorProfilePage = () => {
               </div>
               <div className="mt-2">
                 <span className="text-2xl font-bold font-outfit text-glam-text">
-                  {vendor.travelSurcharge > 0
-                    ? `+₹${vendor.travelSurcharge.toLocaleString("en-IN")}`
+                  {Number(vendor.travelSurcharge || 0) > 0
+                    ? `+₹${Number(vendor.travelSurcharge).toLocaleString("en-IN")}`
                     : "Local Included"}
                 </span>
               </div>

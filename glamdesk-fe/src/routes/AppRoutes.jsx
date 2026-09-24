@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import MainLayout from '../layout/MainLayout';
+import ErrorBoundary from '../components/common/ErrorBoundary';
 import LoginPage from '../pages/auth/LoginPage';
 import SignupPage from '../pages/auth/SignupPage';
 import { ResetPasswordPage } from '../pages/auth/ResetPasswordPage';
@@ -8,7 +9,9 @@ import DashboardPage from '../pages/dashboard/DashboardPage';
 import AppointmentsPage from '../pages/appointments/AppointmentsPage';
 import AppointmentProfilePage from '../pages/appointments/AppointmentProfilePage';
 import ClientsPage from '../pages/clients/ClientsPage';
+import ClientProfilePage from '../pages/clients/ClientProfilePage';
 import QuotationsPage from '../pages/quotations/QuotationsPage';
+import QuotationProfilePage from '../pages/quotations/QuotationProfilePage';
 import PaymentsPage from '../pages/payments/PaymentsPage';
 import MastersPage from '../pages/masters/MastersPage';
 import VendorProfilePage from '../pages/masters/VendorProfilePage';
@@ -75,7 +78,9 @@ const AppRoutes = () => {
         path="/"
         element={
           <ProtectedRoute>
-            <MainLayout />
+            <ErrorBoundary>
+              <MainLayout />
+            </ErrorBoundary>
           </ProtectedRoute>
         }
       >
@@ -83,7 +88,9 @@ const AppRoutes = () => {
         <Route path="appointments" element={<AppointmentsPage />} />
         <Route path="appointments/:id" element={<AppointmentProfilePage />} />
         <Route path="clients" element={<ClientsPage />} />
+        <Route path="clients/:id" element={<ClientProfilePage />} />
         <Route path="quotations" element={<QuotationsPage />} />
+        <Route path="quotations/:id" element={<QuotationProfilePage />} />
         
         {/* Payments Routes */}
         <Route path="payments" element={<Navigate to="/payments/client" replace />} />

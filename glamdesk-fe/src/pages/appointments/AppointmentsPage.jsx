@@ -10,7 +10,7 @@ import {
 import { appointmentStatuses } from "../../data/appointmentData";
 import { useAppointments } from "../../context/AppointmentContext";
 import BookAppointmentModal from "./BookAppointmentModal";
-import { DataTable } from "../../components/common/table";
+import { Table } from "../../components/common/table";
 
 // ─── Status Config for Glowing Dots ──────────────────────────────────────────
 const statusConfig = {
@@ -40,6 +40,11 @@ const statusConfig = {
     dot: "bg-blue-500 shadow-xs shadow-blue-500/50",
   },
   Cancelled: {
+    textColor: "text-rose-700 dark:text-rose-300",
+    bgLight: "bg-rose-500/10",
+    dot: "bg-rose-500 shadow-xs shadow-rose-500/50",
+  },
+  Rejected: {
     textColor: "text-rose-700 dark:text-rose-300",
     bgLight: "bg-rose-500/10",
     dot: "bg-rose-500 shadow-xs shadow-rose-500/50",
@@ -162,11 +167,23 @@ const AppointmentsPage = () => {
       {
         key: "clientName",
         header: "CLIENT",
-        cell: (apt) => (
-          <span className="font-medium text-xs sm:text-sm text-glam-text group-hover:text-glam-accent transition-colors block leading-tight">
-            {apt.clientName}
-          </span>
-        ),
+        cell: (apt) => {
+          const isConfirmed = ["Confirmed", "In-Progress", "Completed"].includes(apt.status);
+          return (
+            <div>
+              <span className="font-medium text-xs sm:text-sm text-glam-text group-hover:text-glam-accent transition-colors block leading-tight">
+                {apt.clientName}
+              </span>
+              <span className="text-[10px] mt-0.5 inline-flex items-center gap-1 font-medium">
+                {isConfirmed ? (
+                  <span className="text-emerald-600 dark:text-emerald-400">✓ Official Client</span>
+                ) : (
+                  <span className="text-amber-600 dark:text-amber-400">Lead · In Enquiry</span>
+                )}
+              </span>
+            </div>
+          );
+        },
       },
       {
         key: "clientPhone",
@@ -283,8 +300,8 @@ const AppointmentsPage = () => {
         </button>
       </div>
 
-      {/* 2. Reusable Luxury Data Table Component */}
-      <DataTable
+      {/* 2. Reusable Luxury Table Component */}
+      <Table
         columns={columns}
         data={appointments}
         searchPlaceholder="Search by name or service..."

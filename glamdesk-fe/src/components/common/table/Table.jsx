@@ -11,7 +11,7 @@ import TableFilterDropdown from "./TableFilterDropdown";
 import Pagination from "./Pagination";
 
 /**
- * Universal, Reusable Data Table Component for GlamDesk
+ * Universal, Reusable Table Component for GlamDesk
  *
  * Features:
  * - Declarative Column Definitions (`columns`)
@@ -25,7 +25,7 @@ import Pagination from "./Pagination";
  * - Compact / Space-Efficient Density by default
  * - Interactive Row Click handling
  */
-const DataTable = ({
+const Table = ({
   // Core Data & Columns
   columns = [],
   data = [],
@@ -422,7 +422,7 @@ const DataTable = ({
         </div>
       )}
 
-      {/* 3. Luxury Data Table Card & States */}
+      {/* 3. Luxury Table Card & States */}
       {isLoading ? (
         <div className="overflow-hidden rounded-2xl md:rounded-3xl border border-glam-border/30 bg-glam-surface/90 backdrop-blur-md shadow-2xs">
           <div className="overflow-x-auto">
@@ -562,4 +562,5 @@ const DataTable = ({
   );
 };
 
-export default DataTable;
+export { Table, Table as DataTable };
+export default Table;
